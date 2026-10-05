@@ -153,10 +153,14 @@ const key=(gid,e)=>gid+"|"+e;
 let pendingJoin=null;
 try{
   const j=new URLSearchParams(location.search).get("join");
-  if(j){ sessionStorage.setItem("pendingJoin",j); history.replaceState(null,"",location.pathname); }
-  pendingJoin=sessionStorage.getItem("pendingJoin");
+  if(j) sessionStorage.setItem("pendingJoin",j);   // ссылку в адресе оставляем до входа, чтобы «Открыть в Safari» её не потерял
+  pendingJoin=j||sessionStorage.getItem("pendingJoin");
 }catch{ pendingJoin=new URLSearchParams(location.search).get("join"); }
-function clearJoin(){ pendingJoin=null; try{ sessionStorage.removeItem("pendingJoin"); }catch{} }
+function clearJoin(){
+  pendingJoin=null;
+  try{ sessionStorage.removeItem("pendingJoin"); }catch{}
+  if(location.search.includes("join=")) history.replaceState(null,"",location.pathname);
+}
 function newCode(){ const a=new Uint8Array(12); crypto.getRandomValues(a); return [...a].map(b=>b.toString(36).padStart(2,"0")).join("").slice(0,20); }
 function inviteLink(g){ return location.origin+location.pathname+"?join="+g.id+"."+g.inviteCode; }
 
@@ -309,15 +313,53 @@ function render(){
   if(mine&&list.length) app.append(el("p",{class:"hint"},"Кто что тебе дарит, скрыто от тебя — пусть будет сюрприз."));
 }
 
+/* Встроенные браузеры (Telegram, Instagram, Facebook, WhatsApp…) Google блокирует для входа */
+const UA=navigator.userAgent||"";
+const isIOS=/iPhone|iPad|iPod/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1);
+const isAndroid=/Android/.test(UA);
+const inApp=!!window.TelegramWebviewProxy||/Telegram|FBAN|FBAV|FB_IAB|Instagram|Line\/|WhatsApp|; wv\)/i.test(UA);
+function siteUrl(){ return location.origin+location.pathname+(pendingJoin?"?join="+encodeURIComponent(pendingJoin):""); }
+function openOutside(){
+  const url=siteUrl();
+  if(isAndroid){
+    const u=new URL(url);
+    location.href="intent://"+u.host+u.pathname+u.search+"#Intent;scheme=https;S.browser_fallback_url="+encodeURIComponent(url)+";end";
+  } else if(isIOS){
+    location.href="x-safari-"+url;
+  }
+}
+async function copySite(){
+  const url=siteUrl();
+  try{ await navigator.clipboard.writeText(url); toast("Ссылка скопирована — вставь её в Safari или Chrome"); }
+  catch{ prompt("Скопируй ссылку и открой в браузере:",url); }
+}
+
 function loginView(){
+  const google=async()=>{
+    const p=new GoogleAuthProvider();
+    try{ await signInWithPopup(auth,p); }
+    catch(e){ if(e&&(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")) signInWithRedirect(auth,p); else if(e&&e.code!=="auth/popup-closed-by-user") toast("Не удалось войти"); }
+  };
+  const invite=pendingJoin? el("div",{class:"notice",style:"text-align:left"},"Тебя пригласили в список вишлистов. Войди через Google, чтобы присоединиться.") : null;
+
+  if(inApp){
+    return el("div",{class:"login"},
+      invite,
+      el("div",{class:"notice",style:"text-align:left"},
+        el("strong",{},"Открой сайт в обычном браузере"),
+        el("p",{style:"margin:6px 0 0"},"Ссылка открылась внутри приложения (например, Telegram), а Google не разрешает входить через такие встроенные браузеры."),
+        el("p",{style:"margin:6px 0 0"}, isIOS? "Нажми «Открыть в Safari» ниже. Если не сработает — нажми ⋯ или значок компаса вверху экрана и выбери «Открыть в Safari»."
+                                         : isAndroid? "Нажми «Открыть в браузере» ниже. Если не сработает — нажми ⋮ вверху справа и выбери «Открыть в браузере»."
+                                         : "Скопируй ссылку и открой её в Safari или Chrome.")),
+      (isIOS||isAndroid)? el("button",{class:"btn",style:"width:100%;margin-bottom:10px",onclick:openOutside}, isIOS?"Открыть в Safari":"Открыть в браузере") : null,
+      el("button",{class:"btn mint",style:"width:100%;margin-bottom:10px",onclick:copySite},"Скопировать ссылку"),
+      el("button",{class:"linkbtn",onclick:google},"Всё равно попробовать войти здесь"));
+  }
+
   return el("div",{class:"login"},
-    pendingJoin? el("div",{class:"notice",style:"text-align:left"},"Тебя пригласили в список вишлистов. Войди через Google, чтобы присоединиться.") : null,
+    invite,
     el("p",{class:"sub"},"Свой список подарков и списки близких. Что ты собираешься дарить — владелец списка не увидит."),
-    el("button",{class:"btn",onclick:async()=>{
-      const p=new GoogleAuthProvider();
-      try{ await signInWithPopup(auth,p); }
-      catch(e){ if(e&&(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")) signInWithRedirect(auth,p); else if(e&&e.code!=="auth/popup-closed-by-user") toast("Не удалось войти"); }
-    }},"Войти через Google"));
+    el("button",{class:"btn",onclick:google},"Войти через Google"));
 }
 
 function itemCard(it,mine,g){
