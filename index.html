@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Wishlists 1.0</title>
+<title>Наши вишлисты</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎁</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -104,26 +104,26 @@ button{cursor:pointer}
 </head>
 <body>
 <main class="wrap">
-  <div class="topbar"><h1>Wishlists 1.0</h1></div>
+  <div class="topbar"><h1>Наши вишлисты</h1></div>
   <div id="app"><p class="status">Загружаю…</p></div>
 </main>
 
 <script type="module">
 /* ====== НАСТРОЙКИ: вставь свои данные ====== */
-const ADMIN_EMAIL = "yevheniiavasylenko.de@gmail.com"; // твой Google-email, тот же, что в firestore.rules
+const ADMIN_EMAIL = "your.email@gmail.com"; // твой Google-email, тот же, что в firestore.rules
 const firebaseConfig = {
-  apiKey: "AIzaSyDpUhzlThvjNpTF2K6jOuYt5U32JLEd4_M",
-  authDomain: "wishlists-9baa7.firebaseapp.com",
-  projectId: "wishlists-9baa7",
-  storageBucket: "wishlists-9baa7.firebasestorage.app",
-  messagingSenderId: "647567080477",
-  appId: "1:647567080477:web:3d9ae0ba1d4770f72e5af4"
+  apiKey: "...",
+  authDomain: "...",
+  projectId: "...",
+  storageBucket: "...",
+  messagingSenderId: "...",
+  appId: "..."
 };
 /* ========================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, query, where, orderBy, onSnapshot, setDoc, addDoc, updateDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, query, where, orderBy, onSnapshot, setDoc, addDoc, updateDoc, deleteDoc, getDocs, getDoc, writeBatch, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const fb = initializeApp(firebaseConfig);
 const auth = getAuth(fb);
@@ -138,6 +138,39 @@ let groups=[], activeGroup=null, view="lists";
 let profiles={}, items={}, claims={}, noAccess={};
 let selected=null, filter="all", editing=null, adding=false, busy=false, joinEmoji="🎁";
 let loadedGroups=false, loadedProfile=false;
+const retries={};
+
+/* приглашение по ссылке: ?join=<groupId>.<code> */
+let pendingJoin=null;
+try{
+  const j=new URLSearchParams(location.search).get("join");
+  if(j){ sessionStorage.setItem("pendingJoin",j); history.replaceState(null,"",location.pathname); }
+  pendingJoin=sessionStorage.getItem("pendingJoin");
+}catch{ pendingJoin=new URLSearchParams(location.search).get("join"); }
+function clearJoin(){ pendingJoin=null; try{ sessionStorage.removeItem("pendingJoin"); }catch{} }
+function newCode(){ const a=new Uint8Array(12); crypto.getRandomValues(a); return [...a].map(b=>b.toString(36).padStart(2,"0")).join("").slice(0,20); }
+function inviteLink(g){ return location.origin+location.pathname+"?join="+g.id+"."+g.inviteCode; }
+
+async function doJoin(){
+  const [gid,code]=String(pendingJoin).split(".");
+  clearJoin();
+  if(!gid||!code) { toast("Ссылка-приглашение повреждена"); return; }
+  const gref=doc(db,"groups",gid);
+  let g=null;
+  try{ const s=await getDoc(gref); if(s.exists()) g=s.data(); }catch{}
+  if(!g || !(g.emails||[]).includes(me)){
+    try{ await updateDoc(gref,{emails:arrayUnion(me),joinCode:code}); }
+    catch(e){ console.error(e); toast("Ссылка недействительна или устарела. Попроси новую."); return; }
+    g=(await getDoc(gref)).data();
+  }
+  // открыть друг другу вишлисты участников этого списка
+  const others=(g.emails||[]).filter(e=>e!==me);
+  const jobs=others.map(e=>setDoc(doc(db,"lists",e),{viewers:arrayUnion(me),via:gid},{merge:true}).catch(err=>console.warn(e,err)));
+  if(others.length) jobs.push(setDoc(doc(db,"lists",me),{viewers:arrayUnion(...others)},{merge:true}).catch(err=>console.warn(err)));
+  await Promise.all(jobs);
+  activeGroup=gid; view="lists";
+  toast("Ты в списке «"+g.name+"»");
+}
 const subs=new Map();
 let groupsUnsub=null;
 
@@ -196,8 +229,10 @@ function subscribePerson(e){
   sub("p:"+e, doc(db,"profiles",e), s=>{ profiles[e]=s.exists()?s.data():null; if(e===me) loadedProfile=true; render(); },
       ()=>{ if(e===me){ loadedProfile=true; render(); } });
   sub("i:"+e, query(collection(db,"lists",e,"items"),orderBy("createdAt","asc")),
-      s=>{ items[e]=s.docs.map(d=>({id:d.id,...d.data()})); delete noAccess[e]; render(); },
-      ()=>{ noAccess[e]=true; render(); });
+      s=>{ items[e]=s.docs.map(d=>({id:d.id,...d.data()})); delete noAccess[e]; delete retries[e]; render(); },
+      ()=>{ noAccess[e]=true; render();
+            retries[e]=(retries[e]||0)+1;
+            if(retries[e]<=4) setTimeout(()=>{ if(noAccess[e]&&allEmails().has(e)) resubscribe(e); }, 3000*retries[e]); });
   if(e!==me) sub("c:"+e, collection(db,"lists",e,"claims"),
       s=>{ const m={}; s.docs.forEach(d=>m[d.id]=d.data()); claims[e]=m; render(); });
 }
@@ -218,10 +253,10 @@ async function syncViewers(){
 
 /* ---------- render ---------- */
 function render(){
-  const keep={}; app.querySelectorAll("form[data-key] input[name],form[data-key] textarea[name]").forEach(n=>keep[n.form.dataset.key+"|"+n.name]=n.value);
+  const keep={}; app.querySelectorAll("form[data-key] input[name][data-dirty],form[data-key] textarea[name][data-dirty]").forEach(n=>keep[n.form.dataset.key+"|"+n.name]=n.value);
   const focused=document.activeElement&&document.activeElement.name;
   app.replaceChildren();
-  queueMicrotask(()=>{ app.querySelectorAll("form[data-key] input[name],form[data-key] textarea[name]").forEach(n=>{ const k=n.form.dataset.key+"|"+n.name; if(k in keep) n.value=keep[k]; if(n.name===focused) n.focus(); }); });
+  queueMicrotask(()=>{ app.querySelectorAll("form[data-key] input[name],form[data-key] textarea[name]").forEach(n=>{ const k=n.form.dataset.key+"|"+n.name; if(k in keep){ n.value=keep[k]; n.dataset.dirty="1"; } if(n.name===focused) n.focus(); }); });
 
   if(!me){ app.append(loginView()); return; }
   if(!loadedGroups||!loadedProfile){ app.append(el("p",{class:"status"},"Загружаю списки…")); return; }
@@ -294,6 +329,7 @@ function render(){
 
 function loginView(){
   return el("div",{class:"login"},
+    pendingJoin? el("div",{class:"notice",style:"text-align:left"},"Тебя пригласили в список вишлистов. Войди через Google, чтобы присоединиться.") : null,
     el("p",{class:"sub"},"Свой список подарков и списки близких. Что ты собираешься дарить — владелец списка не увидит."),
     el("button",{class:"btn",onclick:async()=>{
       const p=new GoogleAuthProvider();
@@ -378,7 +414,7 @@ function adminView(){
   const create=el("form",{class:"form","data-key":"newgroup",onsubmit:e=>{
     e.preventDefault();
     const name=new FormData(create).get("gname").trim(); if(!name) return;
-    write(async()=>{ const r=await addDoc(collection(db,"groups"),{name:name.slice(0,40),emails:[me],createdAt:Date.now()}); activeGroup=r.id; await syncViewers(); },"Список создан");
+    write(async()=>{ const r=await addDoc(collection(db,"groups"),{name:name.slice(0,40),emails:[me],inviteCode:newCode(),createdAt:Date.now()}); activeGroup=r.id; await syncViewers(); },"Список создан");
   }},
     el("strong",{},"Новый список людей"),
     el("label",{},"Название",el("input",{name:"gname",required:true,maxlength:"40",placeholder:"Семья, Друзья, Коллеги…"})),
@@ -390,9 +426,15 @@ function adminView(){
       e.preventDefault();
       const d=Object.fromEntries(new FormData(f));
       const emails=[...new Set(String(d.emails||"").split(/[\s,;]+/).map(norm).filter(x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)))];
-      write(async()=>{ await updateDoc(doc(db,"groups",g.id),{name:(d.gname||g.name).trim().slice(0,40),emails}); await syncViewers(); },"Сохранено");
+      write(async()=>{ await updateDoc(doc(db,"groups",g.id),{name:(d.gname||g.name).trim().slice(0,40),emails}); f.querySelectorAll("[data-dirty]").forEach(n=>delete n.dataset.dirty); await syncViewers(); },"Сохранено");
     }},
       el("h3",{},g.name),
+      g.inviteCode
+        ? el("div",{class:"actions",style:"margin-top:0"},
+            el("button",{class:"btn mint",type:"button",onclick:async()=>{ const l=inviteLink(g); try{ await navigator.clipboard.writeText(l); toast("Ссылка скопирована"); }catch{ prompt("Скопируй ссылку:",l); } }},"Скопировать ссылку-приглашение"),
+            el("button",{class:"btn ghost",type:"button",onclick:()=>{ if(confirm("Старая ссылка перестанет работать. Те, кто уже вошёл, останутся в списке.")) write(()=>updateDoc(doc(db,"groups",g.id),{inviteCode:newCode()}),"Новая ссылка готова"); }},"Новая ссылка"))
+        : el("div",{class:"actions",style:"margin-top:0"},
+            el("button",{class:"btn mint",type:"button",onclick:()=>write(()=>updateDoc(doc(db,"groups",g.id),{inviteCode:newCode()}),"Ссылка создана")},"Создать ссылку-приглашение")),
       el("label",{},"Название",el("input",{name:"gname",maxlength:"40",value:g.name})),
       el("label",{},"Email-адреса (Google), каждый с новой строки",el("textarea",{name:"emails",rows:"5",placeholder:"mama@gmail.com\nsasha@gmail.com"},(g.emails||[]).join("\n"))),
       el("div",{class:"pending"},`Участников: ${(g.emails||[]).length}. Не забудь добавить и себя, если хочешь видеть этих людей и быть видимой им.`),
@@ -405,12 +447,15 @@ function adminView(){
 }
 
 /* ---------- auth ---------- */
-onAuthStateChanged(auth, u=>{
+app.addEventListener("input",e=>{ if(e.target&&e.target.name) e.target.dataset.dirty="1"; });
+
+onAuthStateChanged(auth, async u=>{
   unsubAll();
   profiles={}; items={}; claims={}; noAccess={}; groups=[]; selected=null; view="lists";
   loadedGroups=false; loadedProfile=false;
   if(!u||!u.email){ me=null; render(); return; }
   me=norm(u.email); googleName=u.displayName||""; isAdmin=me===norm(ADMIN_EMAIL);
+  if(pendingJoin){ app.replaceChildren(el("p",{class:"status"},"Добавляю тебя в список…")); await doJoin(); }
   const q=isAdmin? query(collection(db,"groups"),orderBy("createdAt","asc"))
                  : query(collection(db,"groups"),where("emails","array-contains",me));
   groupsUnsub=onSnapshot(q, s=>{
