@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Наши вишлисты</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎁</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F0F8; --surface:#FFFFFF; --ink:#23203A; --muted:#6B6785; --line:#DEDAEB;
+  --ribbon:#D93A55; --ribbon-ink:#FFFFFF; --mint:#2E7D6B; --mint-soft:#DDF0EA; --tag:#F5C451;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#17152A; --surface:#221F38; --ink:#EEEBFA; --muted:#A39FBF; --line:#37334F;
+    --ribbon:#F0607A; --ribbon-ink:#1A1020; --mint:#6FCBB3; --mint-soft:#1E3A34; --tag:#E8B83E;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#17152A; --surface:#221F38; --ink:#EEEBFA; --muted:#A39FBF; --line:#37334F;
+  --ribbon:#F0607A; --ribbon-ink:#1A1020; --mint:#6FCBB3; --mint-soft:#1E3A34; --tag:#E8B83E;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-family:"Unbounded","Golos Text",system-ui,sans-serif;font-weight:700;font-size:clamp(28px,8vw,40px);line-height:1.05;margin:8px 0 4px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 20px;font-size:15px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--ribbon);outline-offset:2px}
+
+/* people strip */
+.people{display:flex;gap:14px;overflow-x:auto;padding:4px 2px 12px;margin:0 -2px 8px;scrollbar-width:none}
+.people::-webkit-scrollbar{display:none}
+.person{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:0;padding:0;width:68px}
+.avatar{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:28px;background:var(--surface);border:2px solid var(--line);transition:transform .15s}
+.person[aria-pressed="true"] .avatar{border-color:var(--ribbon);box-shadow:0 0 0 3px color-mix(in srgb,var(--ribbon) 25%,transparent)}
+.person span{font-size:13px;max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.person[aria-pressed="true"] span{color:var(--ink);font-weight:600}
+
+/* the tag: the one memorable element */
+.tag{position:relative;background:var(--surface);border-radius:6px 22px 22px 6px;padding:22px 20px 20px 40px;margin-bottom:18px;border:1px solid var(--line)}
+.tag::before{content:"";position:absolute;left:14px;top:28px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--line)}
+.tag::after{content:"";position:absolute;left:-1px;top:0;bottom:0;width:6px;background:var(--ribbon);border-radius:6px 0 0 6px}
+.tag h2{font-family:"Unbounded","Golos Text",system-ui,sans-serif;font-size:20px;font-weight:500;margin:0;line-height:1.2}
+.tag .count{color:var(--muted);font-size:14px;margin-top:4px}
+
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 12px;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+.items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.item.claimed{background:var(--mint-soft);border-color:transparent}
+.item-top{display:flex;gap:12px;align-items:flex-start}
+.item-title{font-weight:600;flex:1;min-width:0;word-wrap:break-word}
+.price{white-space:nowrap;font-weight:600;color:var(--muted)}
+.meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:14px;color:var(--muted)}
+.occ{background:var(--tag);color:#3A2A00;border-radius:4px;padding:1px 7px;font-size:12px;font-weight:600}
+.note{margin:8px 0 0;font-size:15px;white-space:pre-wrap;word-wrap:break-word}
+.item a{color:var(--mint);font-weight:500;word-break:break-all}
+.actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.btn{border:0;border-radius:10px;padding:9px 14px;font-weight:600;font-size:15px;background:var(--ribbon);color:var(--ribbon-ink)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.mint{background:var(--mint);color:var(--surface)}
+.btn:disabled{opacity:.5;cursor:default}
+.taken{font-size:14px;color:var(--muted);margin-top:10px}
+
+.form{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:16px;margin-bottom:14px;display:grid;gap:10px}
+.form label{display:grid;gap:4px;font-size:14px;color:var(--muted)}
+.form input,.form textarea{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;font-size:16px}
+.form textarea{min-height:60px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.emojis{display:flex;gap:6px;flex-wrap:wrap}
+.emojis button{font-size:24px;width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg)}
+.emojis button[aria-pressed="true"]{border:2px solid var(--ribbon)}
+.empty{color:var(--muted);text-align:center;padding:28px 12px;font-size:15px}
+.status{color:var(--muted);text-align:center;padding:40px 12px}
+.hint{font-size:13px;color:var(--muted);margin:16px 0 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:4px}
+.me{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);min-width:0}
+.me span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;padding:4px;font-size:14px}
+.groups{display:flex;gap:8px;overflow-x:auto;margin:0 0 14px;padding-bottom:2px;scrollbar-width:none}
+.groups .chip{flex:0 0 auto}
+.chip.admin{border-style:dashed}
+.notice{background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--tag);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:15px}
+.pending{font-size:12px;color:var(--muted)}
+.person.ghost .avatar{opacity:.55;border-style:dashed}
+.login{text-align:center;padding:40px 8px}
+.login .btn{display:inline-flex;align-items:center;gap:10px;padding:12px 20px;font-size:16px}
+.group-card h3{margin:0;font-family:"Unbounded","Golos Text",system-ui,sans-serif;font-weight:500;font-size:17px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:10}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="topbar"><h1>Наши вишлисты</h1></div>
+  <div id="app"><p class="status">Загружаю…</p></div>
+</main>
+
+<script type="module">
+/* ====== НАСТРОЙКИ: вставь свои данные ====== */
+const ADMIN_EMAIL = "yevheniiavasylenko.de@gmail.com"; // твой Google-email, тот же, что в firestore.rules
+const firebaseConfig = {
+  apiKey: "AIzaSyDpUhzlThvjNpTF2K6jOuYt5U32JLEd4_M",
+  authDomain: "wishlists-9baa7.firebaseapp.com",
+  projectId: "wishlists-9baa7",
+  storageBucket: "wishlists-9baa7.firebasestorage.app",
+  messagingSenderId: "647567080477",
+  appId: "1:647567080477:web:3d9ae0ba1d4770f72e5af4"
+};
+/* ========================================== */
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, query, where, orderBy, onSnapshot, setDoc, addDoc, updateDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const fb = initializeApp(firebaseConfig);
+const auth = getAuth(fb);
+const db = getFirestore(fb);
+
+const OCCASIONS = ["Новый год","День рождения","Рождество","8 марта","Просто так"];
+const EMOJIS = ["🎁","🦊","🐻","🐱","🐶","🦉","🌸","🍓","⭐️","🎄","🚀","🧸"];
+const app = document.getElementById("app");
+
+let me=null, isAdmin=false, googleName="";
+let groups=[], activeGroup=null, view="lists";
+let profiles={}, items={}, claims={}, noAccess={};
+let selected=null, filter="all", editing=null, adding=false, busy=false, joinEmoji="🎁";
+let loadedGroups=false, loadedProfile=false;
+const subs=new Map();
+let groupsUnsub=null;
+
+/* ---------- helpers ---------- */
+function el(tag, attrs={}, ...kids){
+  const n=document.createElement(tag);
+  for(const [k,v] of Object.entries(attrs)){
+    if(v==null||v===false) continue;
+    if(k==="class") n.className=v;
+    else if(k.startsWith("on")) n.addEventListener(k.slice(2),v);
+    else n.setAttribute(k,v===true?"":v);
+  }
+  for(const k of kids.flat()){ if(k==null||k===false) continue; n.append(k.nodeType?k:document.createTextNode(String(k))); }
+  return n;
+}
+const norm = e => (e||"").trim().toLowerCase();
+function displayName(e){ return (profiles[e]&&profiles[e].name) || (e===me?googleName:"") || e.split("@")[0]; }
+function safeUrl(u){ try{ const x=new URL(u); return /^https?:$/.test(x.protocol)?x.href:null; }catch{ return null; } }
+function plural(n){ const a=n%10,b=n%100; if(a===1&&b!==11) return "желание"; if(a>=2&&a<=4&&(b<12||b>14)) return "желания"; return "желаний"; }
+function toast(t){ const n=el("div",{class:"toast",role:"status"},t); document.body.append(n); setTimeout(()=>n.remove(),2200); }
+
+async function write(fn, okMsg){
+  if(busy) return; busy=true;
+  try{ await fn(); if(okMsg) toast(okMsg); }
+  catch(e){
+    console.error(e);
+    if(e&&e.code==="permission-denied") toast("Нет прав на это действие");
+    else toast("Не получилось сохранить. Попробуй ещё раз");
+  }
+  finally{ busy=false; render(); }
+}
+
+/* ---------- subscriptions ---------- */
+function sub(key, ref, onData, onFail){
+  if(subs.has(key)) return;
+  const u=onSnapshot(ref, onData, err=>{ subs.delete(key); if(onFail) onFail(err); });
+  subs.set(key,u);
+}
+function unsubAll(){ subs.forEach(u=>u()); subs.clear(); if(groupsUnsub){groupsUnsub();groupsUnsub=null;} }
+
+function allEmails(){
+  const s=new Set([me]);
+  groups.forEach(g=>(g.emails||[]).forEach(e=>s.add(e)));
+  return s;
+}
+function subscribePeople(){
+  const want=allEmails();
+  for(const [key,u] of subs){ const e=key.slice(2); if(!want.has(e)){ u(); subs.delete(key); } }
+  for(const e of want) subscribePerson(e);
+}
+function resubscribe(e){
+  ["p:","i:","c:"].forEach(k=>{ const u=subs.get(k+e); if(u){ u(); subs.delete(k+e); } });
+  subscribePerson(e);
+}
+function subscribePerson(e){
+  sub("p:"+e, doc(db,"profiles",e), s=>{ profiles[e]=s.exists()?s.data():null; if(e===me) loadedProfile=true; render(); },
+      ()=>{ if(e===me){ loadedProfile=true; render(); } });
+  sub("i:"+e, query(collection(db,"lists",e,"items"),orderBy("createdAt","asc")),
+      s=>{ items[e]=s.docs.map(d=>({id:d.id,...d.data()})); delete noAccess[e]; render(); },
+      ()=>{ noAccess[e]=true; render(); });
+  if(e!==me) sub("c:"+e, collection(db,"lists",e,"claims"),
+      s=>{ const m={}; s.docs.forEach(d=>m[d.id]=d.data()); claims[e]=m; render(); });
+}
+
+/* ---------- admin: who can see whom ---------- */
+async function syncViewers(){
+  const gs=await getDocs(collection(db,"groups"));
+  const map={};
+  gs.forEach(g=>{ const em=g.data().emails||[]; em.forEach(e=>{ map[e]=map[e]||new Set(); em.forEach(o=>{ if(o!==e) map[e].add(o); }); }); });
+  const ls=await getDocs(collection(db,"lists"));
+  const batch=writeBatch(db);
+  Object.entries(map).forEach(([e,set])=>batch.set(doc(db,"lists",e),{viewers:[...set]}));
+  ls.forEach(d=>{ if(!map[d.id]) batch.set(doc(db,"lists",d.id),{viewers:[]}); });
+  await batch.commit();
+  // повторно подписаться на тех, к кому раньше не было доступа
+  Object.keys(noAccess).forEach(resubscribe);
+}
+
+/* ---------- render ---------- */
+function render(){
+  const keep={}; app.querySelectorAll("form[data-key] input[name],form[data-key] textarea[name]").forEach(n=>keep[n.form.dataset.key+"|"+n.name]=n.value);
+  const focused=document.activeElement&&document.activeElement.name;
+  app.replaceChildren();
+  queueMicrotask(()=>{ app.querySelectorAll("form[data-key] input[name],form[data-key] textarea[name]").forEach(n=>{ const k=n.form.dataset.key+"|"+n.name; if(k in keep) n.value=keep[k]; if(n.name===focused) n.focus(); }); });
+
+  if(!me){ app.append(loginView()); return; }
+  if(!loadedGroups||!loadedProfile){ app.append(el("p",{class:"status"},"Загружаю списки…")); return; }
+
+  app.append(el("div",{class:"me"},
+    el("span",{},me), el("button",{class:"linkbtn",onclick:()=>signOut(auth)},"Выйти")));
+
+  if(!profiles[me]){ app.append(profileForm()); return; }
+
+  // вкладки групп
+  if(groups.length||isAdmin){
+    if(!activeGroup||!groups.find(g=>g.id===activeGroup)) activeGroup=groups[0]?groups[0].id:null;
+    const bar=el("div",{class:"groups",role:"group","aria-label":"Списки людей"});
+    groups.forEach(g=>bar.append(el("button",{class:"chip","aria-pressed":String(view==="lists"&&g.id===activeGroup),onclick:()=>{view="lists";activeGroup=g.id;selected=null;adding=false;editing=null;render();}},g.name)));
+    if(isAdmin) bar.append(el("button",{class:"chip admin","aria-pressed":String(view==="admin"),onclick:()=>{view="admin";render();}},"Управление"));
+    app.append(bar);
+  }
+  if(view==="admin"&&isAdmin){ app.append(adminView()); return; }
+
+  if(!groups.length) app.append(el("div",{class:"notice"},
+    isAdmin? "Создай первый список людей во вкладке «Управление» и добавь туда email-адреса."
+           : "Тебя пока не добавили ни в один список. Попроси администратора добавить "+me+". А свой вишлист можно заполнять уже сейчас."));
+
+  const g=groups.find(x=>x.id===activeGroup);
+  const ids=[me,...((g&&g.emails)||[]).filter(e=>e!==me)];
+  if(!selected||!ids.includes(selected)) selected=me;
+
+  const strip=el("div",{class:"people",role:"group","aria-label":"Чей список"});
+  for(const id of ids){
+    const ghost=id!==me&&!profiles[id];
+    strip.append(el("button",{class:"person"+(ghost?" ghost":""),"aria-pressed":String(id===selected),title:id,onclick:()=>{
+        selected=id;filter="all";adding=false;editing=null;
+        if(noAccess[id]) resubscribe(id);
+        render();}},
+      el("div",{class:"avatar"},(profiles[id]&&profiles[id].emoji)||"🎁"),
+      el("span",{},id===me?"Я":displayName(id))));
+  }
+  app.append(strip);
+
+  const mine=selected===me;
+  const list=items[selected]||[];
+  app.append(el("div",{class:"tag"},
+    el("h2",{},mine?"Мой вишлист":"Вишлист: "+displayName(selected)),
+    el("div",{class:"count"}, !mine&&!profiles[selected]?"Ещё не заходил(а) в приложение": list.length?`${list.length} ${plural(list.length)}`:"Пока пусто")));
+
+  if(!mine&&noAccess[selected]){ app.append(el("p",{class:"empty"},"Список пока недоступен. Обычно это проходит через минуту после того, как администратор сохранит список людей.")); return; }
+
+  if(mine){
+    if(adding) app.append(itemForm(null));
+    else app.append(el("button",{class:"btn",style:"width:100%;margin-bottom:14px",onclick:()=>{adding=true;editing=null;render();queueMicrotask(()=>{const i=app.querySelector("form input");if(i)i.focus();});}},"Добавить желание"));
+  }
+
+  const occs=[...new Set(list.map(i=>i.occasion).filter(Boolean))];
+  if(filter!=="all"&&!occs.includes(filter)) filter="all";
+  if(occs.length>1){
+    const c=el("div",{class:"chips"});
+    for(const o of ["all",...occs]) c.append(el("button",{class:"chip","aria-pressed":String(filter===o),onclick:()=>{filter=o;render();}},o==="all"?"Все":o));
+    app.append(c);
+  }
+  const shown=list.filter(i=>filter==="all"||i.occasion===filter);
+  if(!shown.length){
+    app.append(el("p",{class:"empty"}, mine?"Добавь первое желание — чем подробнее, тем проще тебе угодить.":"Здесь пока ничего нет."));
+  } else {
+    const ul=el("ul",{class:"items"});
+    for(const it of shown) ul.append(editing===it.id?el("li",{},itemForm(it)):itemCard(it,mine));
+    app.append(ul);
+  }
+  if(mine&&list.length) app.append(el("p",{class:"hint"},"Кто что тебе дарит, скрыто от тебя — пусть будет сюрприз."));
+}
+
+function loginView(){
+  return el("div",{class:"login"},
+    el("p",{class:"sub"},"Свой список подарков и списки близких. Что ты собираешься дарить — владелец списка не увидит."),
+    el("button",{class:"btn",onclick:async()=>{
+      const p=new GoogleAuthProvider();
+      try{ await signInWithPopup(auth,p); }
+      catch(e){ if(e&&(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")) signInWithRedirect(auth,p); else if(e&&e.code!=="auth/popup-closed-by-user") toast("Не удалось войти"); }
+    }},"Войти через Google"));
+}
+
+function itemCard(it,mine){
+  const owner=selected;
+  const claim=!mine&&claims[owner]&&claims[owner][it.id];
+  const byMe=claim&&claim.by===me;
+  const li=el("li",{class:"item"+(claim?" claimed":"")});
+  li.append(el("div",{class:"item-top"},el("div",{class:"item-title"},it.title),it.price?el("div",{class:"price"},it.price):null));
+  const url=safeUrl(it.url||"");
+  const meta=el("div",{class:"meta"});
+  if(it.occasion) meta.append(el("span",{class:"occ"},it.occasion));
+  if(url) meta.append(el("a",{href:url,target:"_blank",rel:"noopener noreferrer"},"Ссылка"));
+  if(meta.childNodes.length) li.append(meta);
+  if(it.note) li.append(el("p",{class:"note"},it.note));
+
+  if(mine){
+    li.append(el("div",{class:"actions"},
+      el("button",{class:"btn ghost",onclick:()=>{editing=it.id;adding=false;render();}},"Изменить"),
+      el("button",{class:"btn ghost",onclick:()=>{ if(confirm("Удалить «"+it.title+"»?")) write(()=>deleteDoc(doc(db,"lists",me,"items",it.id))); }},"Удалить")));
+  } else if(byMe){
+    li.append(el("div",{class:"taken"},"Это даришь ты"));
+    li.append(el("div",{class:"actions"},el("button",{class:"btn ghost",onclick:()=>write(()=>deleteDoc(doc(db,"lists",owner,"claims",it.id)))},"Отменить бронь")));
+  } else if(claim){
+    li.append(el("div",{class:"taken"},"Уже дарит "+displayName(claim.by)));
+  } else {
+    li.append(el("div",{class:"actions"},el("button",{class:"btn mint",onclick:()=>write(()=>setDoc(doc(db,"lists",owner,"claims",it.id),{by:me,at:Date.now()}))},"Я подарю это")));
+  }
+  return li;
+}
+
+function itemForm(it){
+  const f=el("form",{class:"form","data-key":it?it.id:"new",onsubmit:e=>{
+    e.preventDefault();
+    const d=Object.fromEntries(new FormData(f));
+    const title=(d.title||"").trim(); if(!title) return;
+    const body={title:title.slice(0,200),url:(d.url||"").trim().slice(0,1000),price:(d.price||"").trim().slice(0,40),occasion:(d.occasion||"").trim().slice(0,40),note:(d.note||"").trim().slice(0,1000)};
+    write(async()=>{
+      if(it) await updateDoc(doc(db,"lists",me,"items",it.id),body);
+      else await addDoc(collection(db,"lists",me,"items"),{...body,createdAt:Date.now()});
+      adding=false; editing=null;
+    });
+  }});
+  const v=k=>it?(it[k]||""):"";
+  f.append(
+    el("label",{},"Что хочется",el("input",{name:"title",required:true,maxlength:"200",value:v("title"),placeholder:"Например, тёплый плед"})),
+    el("label",{},"Ссылка",el("input",{name:"url",type:"url",inputmode:"url",value:v("url"),placeholder:"https://…"})),
+    el("div",{class:"row"},
+      el("label",{},"Цена",el("input",{name:"price",maxlength:"40",value:v("price"),placeholder:"≈ 40 €"})),
+      el("label",{},"Повод",el("input",{name:"occasion",list:"occ-list",maxlength:"40",value:v("occasion"),placeholder:"Новый год"}))),
+    el("datalist",{id:"occ-list"},OCCASIONS.map(o=>el("option",{value:o}))),
+    el("label",{},"Комментарий",el("textarea",{name:"note",maxlength:"1000",placeholder:"Размер, цвет, что точно не надо…"},v("note"))),
+    el("div",{class:"actions"},
+      el("button",{class:"btn",type:"submit",disabled:busy},it?"Сохранить":"Добавить"),
+      el("button",{class:"btn ghost",type:"button",onclick:()=>{adding=false;editing=null;render();}},"Отмена")));
+  return f;
+}
+
+function profileForm(){
+  const f=el("form",{class:"form","data-key":"profile",onsubmit:e=>{
+    e.preventDefault();
+    const name=new FormData(f).get("name").trim(); if(!name) return;
+    write(()=>setDoc(doc(db,"profiles",me),{name:name.slice(0,40),emoji:joinEmoji}));
+  }});
+  const em=el("div",{class:"emojis",role:"group","aria-label":"Аватар"});
+  for(const e of EMOJIS) em.append(el("button",{type:"button","aria-pressed":String(e===joinEmoji),"aria-label":e,onclick:()=>{joinEmoji=e;em.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.textContent===e)));}},e));
+  f.append(
+    el("strong",{},"Как тебя подписать"),
+    el("label",{},"Имя, которое увидят остальные",el("input",{name:"name",required:true,maxlength:"40",value:googleName,placeholder:"Мама, Саша, Тётя Оля…"})),
+    em,
+    el("div",{class:"actions"},el("button",{class:"btn",type:"submit"},"Продолжить")));
+  return f;
+}
+
+function adminView(){
+  const wrap=el("div",{});
+  const create=el("form",{class:"form","data-key":"newgroup",onsubmit:e=>{
+    e.preventDefault();
+    const name=new FormData(create).get("gname").trim(); if(!name) return;
+    write(async()=>{ const r=await addDoc(collection(db,"groups"),{name:name.slice(0,40),emails:[me],createdAt:Date.now()}); activeGroup=r.id; await syncViewers(); },"Список создан");
+  }},
+    el("strong",{},"Новый список людей"),
+    el("label",{},"Название",el("input",{name:"gname",required:true,maxlength:"40",placeholder:"Семья, Друзья, Коллеги…"})),
+    el("div",{class:"actions"},el("button",{class:"btn",type:"submit"},"Создать")));
+  wrap.append(create);
+
+  groups.forEach(g=>{
+    const f=el("form",{class:"form group-card","data-key":"g-"+g.id,onsubmit:e=>{
+      e.preventDefault();
+      const d=Object.fromEntries(new FormData(f));
+      const emails=[...new Set(String(d.emails||"").split(/[\s,;]+/).map(norm).filter(x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)))];
+      write(async()=>{ await updateDoc(doc(db,"groups",g.id),{name:(d.gname||g.name).trim().slice(0,40),emails}); await syncViewers(); },"Сохранено");
+    }},
+      el("h3",{},g.name),
+      el("label",{},"Название",el("input",{name:"gname",maxlength:"40",value:g.name})),
+      el("label",{},"Email-адреса (Google), каждый с новой строки",el("textarea",{name:"emails",rows:"5",placeholder:"mama@gmail.com\nsasha@gmail.com"},(g.emails||[]).join("\n"))),
+      el("div",{class:"pending"},`Участников: ${(g.emails||[]).length}. Не забудь добавить и себя, если хочешь видеть этих людей и быть видимой им.`),
+      el("div",{class:"actions"},
+        el("button",{class:"btn",type:"submit"},"Сохранить"),
+        el("button",{class:"btn ghost",type:"button",onclick:()=>{ if(confirm("Удалить список «"+g.name+"»? Вишлисты людей останутся.")) write(async()=>{ await deleteDoc(doc(db,"groups",g.id)); await syncViewers(); },"Удалено"); }},"Удалить")));
+    wrap.append(f);
+  });
+  return wrap;
+}
+
+/* ---------- auth ---------- */
+onAuthStateChanged(auth, u=>{
+  unsubAll();
+  profiles={}; items={}; claims={}; noAccess={}; groups=[]; selected=null; view="lists";
+  loadedGroups=false; loadedProfile=false;
+  if(!u||!u.email){ me=null; render(); return; }
+  me=norm(u.email); googleName=u.displayName||""; isAdmin=me===norm(ADMIN_EMAIL);
+  const q=isAdmin? query(collection(db,"groups"),orderBy("createdAt","asc"))
+                 : query(collection(db,"groups"),where("emails","array-contains",me));
+  groupsUnsub=onSnapshot(q, s=>{
+    groups=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+    loadedGroups=true; subscribePeople(); render();
+  }, err=>{ console.error(err); loadedGroups=true; subscribePeople(); render(); });
+  subscribePeople();
+  render();
+});
+</script>
+</body>
+</html>
