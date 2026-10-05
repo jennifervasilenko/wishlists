@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -87,6 +87,9 @@ button{cursor:pointer}
 </style>
 <style>
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:4px}
+.lang{display:flex;gap:2px;flex-shrink:0;border:1px solid var(--line);border-radius:10px;padding:2px}
+.lang button{background:none;border:0;color:var(--muted);font:inherit;font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .me{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);min-width:0}
 .me span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;padding:4px;font-size:14px}
@@ -105,12 +108,12 @@ button{cursor:pointer}
 <body>
 <main class="wrap">
   <div class="topbar"><h1>Wishlists 1.0</h1></div>
-  <div id="app"><p class="status">Загружаю…</p></div>
+  <div id="app"><p class="status">…</p></div>
 </main>
 
 <script type="module">
-/* ====== НАСТРОЙКИ ====== */
-const ADMIN_EMAIL = "yevheniiavasylenko.de@gmail.com"; // тот же, что в firestore.rules
+/* ====== SETTINGS ====== */
+const ADMIN_EMAIL = "yevheniiavasylenko.de@gmail.com"; // same as in firestore.rules
 const firebaseConfig = {
   apiKey: "AIzaSyDpUhzlThvjNpTF2K6jOuYt5U32JLEd4_M",
   authDomain: "wishlists-9baa7.firebaseapp.com",
@@ -129,7 +132,6 @@ const fb = initializeApp(firebaseConfig);
 const auth = getAuth(fb);
 const db = getFirestore(fb);
 
-const OCCASIONS = ["Новый год","День рождения","Рождество","8 марта","Просто так"];
 const EMOJIS = ["🎁","🦊","🐻","🐱","🐶","🦉","🌸","🍓","⭐️","🎄","🚀","🧸"];
 const app = document.getElementById("app");
 
@@ -141,19 +143,133 @@ let loadedGroups=false, loadedProfile=false;
 const subs=new Map(), retries={};
 let groupsUnsub=null;
 
-/* Данные: lists/{email}/g/{groupId}/items — желание живёт внутри одного списка людей.
-   Его видят только участники этого списка. Брони: lists/{email}/g/{groupId}/claims/{itemId}. */
+/* ====== i18n ====== */
+const I18N={
+uk:{
+  loading:"Завантажую…", loadingLists:"Завантажую списки…", joining:"Додаю тебе до списку…",
+  inviteBroken:"Посилання-запрошення пошкоджене", joined:"Ти в списку!",
+  joinError:c=>`Не вдалося додати тебе за посиланням-запрошенням (${c}). Можливо, посилання застаріло — попроси нове.`,
+  joinToast:"Посилання недійсне або застаріле. Попроси нове.",
+  plural:n=>{ const a=n%10,b=n%100; if(a===1&&b!==11) return "бажання"; if(a>=2&&a<=4&&(b<12||b>14)) return "бажання"; return "бажань"; },
+  noRights:"Немає прав на цю дію (перевір, що правила Firestore оновлені)", saveFailed:"Не вдалося зберегти. Спробуй ще раз",
+  logout:"Вийти", peopleLists:"Списки людей", manage:"Керування",
+  adminNoGroups:"Створи список людей у вкладці «Керування». Тебе буде додано до нього автоматично.",
+  userNoGroups:m=>`Тебе поки не додали до жодного списку. Попроси посилання-запрошення або напиши адміністраторові свій email: ${m}.`,
+  whose:"Чий список", meShort:"Я", myWishlist:"Мій список бажань", wishlistOf:n=>"Список бажань: "+n,
+  notJoined:"Ще не заходив(-ла) у застосунок", empty:"Поки порожньо",
+  visibleTo:g=>`Ці бажання бачать лише учасники списку «${g}». В інших списках у тебе окремі списки бажань.`,
+  loadFailed:"Не вдалося завантажити список. Онови сторінку за хвилину.",
+  addWish:"Додати бажання", all:"Усі",
+  emptyMine:"Додай перше бажання — що детальніше, то легше тобі догодити.", emptyOther:"Тут поки нічого немає.",
+  surprise:"Хто що тобі дарує, приховано від тебе — хай буде сюрприз.",
+  copiedOpen:"Посилання скопійовано — встав його в Safari або Chrome", copyPrompt:"Скопіюй посилання і відкрий у браузері:",
+  loginFailed:"Не вдалося увійти",
+  invited:"Тебе запросили до списку бажань. Увійди через Google, щоб приєднатися.",
+  openNormal:"Відкрий сайт у звичайному браузері",
+  inAppWhy:"Посилання відкрилося всередині застосунку (наприклад, Telegram), а Google не дозволяє входити через такі вбудовані браузери.",
+  iosHow:"Натисни «Відкрити в Safari» нижче. Якщо не спрацює — натисни ⋯ або значок компаса вгорі екрана й обери відкриття в Safari.",
+  androidHow:"Натисни «Відкрити в браузері» нижче. Якщо не спрацює — натисни ⋮ угорі праворуч і обери відкриття в браузері.",
+  otherHow:"Скопіюй посилання і відкрий його в Safari або Chrome.",
+  openSafari:"Відкрити в Safari", openBrowser:"Відкрити в браузері", copyLink:"Скопіювати посилання", tryHere:"Все одно спробувати увійти тут",
+  tagline:"Свій список подарунків і списки близьких. Що ти збираєшся дарувати — власник списку не побачить.",
+  signIn:"Увійти через Google",
+  link:"Посилання", edit:"Змінити", del:"Видалити", confirmDelete:t=>`Видалити «${t}»?`,
+  youGive:"Це даруєш ти", cancelClaim:"Скасувати бронь", takenBy:n=>"Уже дарує "+n, iGive:"Я подарую це",
+  fTitle:"Що хочеться", fTitlePh:"Наприклад, теплий плед", fUrl:"Посилання", fPrice:"Ціна", fOcc:"Привід", fNote:"Коментар",
+  fNotePh:"Розмір, колір, що точно не треба…",
+  save:"Зберегти", addTo:g=>`Додати в «${g}»`, cancel:"Скасувати",
+  avatar:"Аватар", howSign:"Як тебе підписати", nameLabel:"Ім'я, яке побачать інші", namePh:"Мама, Саша, Тітка Оля…", cont:"Продовжити",
+  groupCreated:"Список створено", newGroup:"Новий список людей", gName:"Назва", gNamePh:"Сім'я, Друзі, Колеги…", create:"Створити", saved:"Збережено",
+  linkCopied:"Посилання скопійовано", copyLinkPrompt:"Скопіюй посилання:", copyInvite:"Скопіювати посилання-запрошення",
+  confirmNewLink:"Старе посилання перестане працювати. Ті, хто вже увійшов, залишаться в списку.",
+  newLinkReady:"Нове посилання готове", newLink:"Нове посилання", linkCreated:"Посилання створено", createInvite:"Створити посилання-запрошення",
+  emailsLabel:"Email-адреси (Google), кожна з нового рядка",
+  members:n=>`Учасників: ${n}. Себе теж залиш у списку, якщо хочеш бачити цих людей і вести тут свій список бажань.`,
+  confirmDelGroup:g=>`Видалити список «${g}»? Бажання в ньому перестануть бути видимими.`,
+  deleted:"Видалено", groupsLoadFailed:"Не вдалося завантажити списки", lang:"Мова",
+  occasions:["Новий рік","День народження","Різдво","8 березня","Просто так"]
+},
+de:{
+  loading:"Wird geladen…", loadingLists:"Listen werden geladen…", joining:"Du wirst zur Liste hinzugefügt…",
+  inviteBroken:"Der Einladungslink ist beschädigt", joined:"Du bist dabei!",
+  joinError:c=>`Du konntest über den Einladungslink nicht hinzugefügt werden (${c}). Vielleicht ist der Link abgelaufen – bitte um einen neuen.`,
+  joinToast:"Der Link ist ungültig oder abgelaufen. Bitte um einen neuen.",
+  plural:n=>n===1?"Wunsch":"Wünsche",
+  noRights:"Keine Berechtigung (prüfe, ob die Firestore-Regeln aktualisiert sind)", saveFailed:"Speichern fehlgeschlagen. Versuch es noch einmal",
+  logout:"Abmelden", peopleLists:"Personenlisten", manage:"Verwaltung",
+  adminNoGroups:"Lege im Tab „Verwaltung“ eine Personenliste an. Du wirst automatisch hinzugefügt.",
+  userNoGroups:m=>`Du wurdest noch keiner Liste hinzugefügt. Bitte um einen Einladungslink oder schick dem Admin deine E-Mail: ${m}.`,
+  whose:"Wessen Liste", meShort:"Ich", myWishlist:"Meine Wunschliste", wishlistOf:n=>"Wunschliste: "+n,
+  notJoined:"Noch nicht in der App angemeldet", empty:"Noch leer",
+  visibleTo:g=>`Diese Wünsche sehen nur Mitglieder der Liste „${g}“. In anderen Listen hast du eigene Wunschlisten.`,
+  loadFailed:"Die Liste konnte nicht geladen werden. Lade die Seite in einer Minute neu.",
+  addWish:"Wunsch hinzufügen", all:"Alle",
+  emptyMine:"Füge deinen ersten Wunsch hinzu – je genauer, desto leichter kann man dir eine Freude machen.", emptyOther:"Hier ist noch nichts.",
+  surprise:"Wer dir was schenkt, bleibt vor dir verborgen – es soll ja eine Überraschung sein.",
+  copiedOpen:"Link kopiert – füge ihn in Safari oder Chrome ein", copyPrompt:"Kopiere den Link und öffne ihn im Browser:",
+  loginFailed:"Anmeldung fehlgeschlagen",
+  invited:"Du wurdest zu einer Wunschliste eingeladen. Melde dich mit Google an, um beizutreten.",
+  openNormal:"Öffne die Seite in einem normalen Browser",
+  inAppWhy:"Der Link wurde in einer App geöffnet (z. B. Telegram), und Google erlaubt die Anmeldung in solchen eingebauten Browsern nicht.",
+  iosHow:"Tippe unten auf „In Safari öffnen“. Falls das nicht klappt, tippe oben auf ⋯ oder das Kompass-Symbol und öffne die Seite in Safari.",
+  androidHow:"Tippe unten auf „Im Browser öffnen“. Falls das nicht klappt, tippe oben rechts auf ⋮ und öffne die Seite im Browser.",
+  otherHow:"Kopiere den Link und öffne ihn in Safari oder Chrome.",
+  openSafari:"In Safari öffnen", openBrowser:"Im Browser öffnen", copyLink:"Link kopieren", tryHere:"Trotzdem hier anmelden",
+  tagline:"Deine eigene Geschenkeliste und die Listen deiner Liebsten. Was du verschenken willst, sieht die beschenkte Person nicht.",
+  signIn:"Mit Google anmelden",
+  link:"Link", edit:"Bearbeiten", del:"Löschen", confirmDelete:t=>`„${t}“ löschen?`,
+  youGive:"Das schenkst du", cancelClaim:"Reservierung aufheben", takenBy:n=>"Wird schon geschenkt von "+n, iGive:"Das schenke ich",
+  fTitle:"Was wünschst du dir", fTitlePh:"Zum Beispiel eine kuschelige Decke", fUrl:"Link", fPrice:"Preis", fOcc:"Anlass", fNote:"Kommentar",
+  fNotePh:"Größe, Farbe, was auf keinen Fall…",
+  save:"Speichern", addTo:g=>`Zu „${g}“ hinzufügen`, cancel:"Abbrechen",
+  avatar:"Avatar", howSign:"Wie sollen dich die anderen sehen", nameLabel:"Name, den die anderen sehen", namePh:"Mama, Sascha, Tante Olga…", cont:"Weiter",
+  groupCreated:"Liste erstellt", newGroup:"Neue Personenliste", gName:"Name", gNamePh:"Familie, Freunde, Kollegen…", create:"Erstellen", saved:"Gespeichert",
+  linkCopied:"Link kopiert", copyLinkPrompt:"Kopiere den Link:", copyInvite:"Einladungslink kopieren",
+  confirmNewLink:"Der alte Link funktioniert dann nicht mehr. Wer schon beigetreten ist, bleibt in der Liste.",
+  newLinkReady:"Neuer Link ist bereit", newLink:"Neuer Link", linkCreated:"Link erstellt", createInvite:"Einladungslink erstellen",
+  emailsLabel:"E-Mail-Adressen (Google), jede in einer neuen Zeile",
+  members:n=>`Mitglieder: ${n}. Bleib selbst in der Liste, wenn du diese Personen sehen und hier deine Wunschliste führen willst.`,
+  confirmDelGroup:g=>`Liste „${g}“ löschen? Die Wünsche darin sind dann nicht mehr sichtbar.`,
+  deleted:"Gelöscht", groupsLoadFailed:"Listen konnten nicht geladen werden", lang:"Sprache",
+  occasions:["Weihnachten","Geburtstag","Neujahr","Ostern","Einfach so"]
+}};
+const LANGS=[["uk","UA"],["de","DE"]];
+let lang=(()=>{ try{ const s=localStorage.getItem("lang"); if(I18N[s]) return s; }catch{} return /^de/i.test(navigator.language||"")?"de":"uk"; })();
+const t=(k,...a)=>{ const v=I18N[lang][k]; return typeof v==="function"?v(...a):v; };
+function applyLang(){
+  document.documentElement.lang=lang;
+  const sw=document.getElementById("lang");
+  if(sw) sw.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.lang===lang)));
+}
+function setLang(l, persist=true){
+  if(!I18N[l]) return;
+  const changed=l!==lang; lang=l;
+  try{ localStorage.setItem("lang",l); }catch{}
+  applyLang();
+  if(persist&&me&&profiles[me]&&profiles[me].lang!==l) setDoc(doc(db,"profiles",me),{lang:l},{merge:true}).catch(e=>console.warn(e));
+  if(changed) render();
+}
+(function buildSwitcher(){
+  const sw=el("div",{id:"lang",class:"lang",role:"group","aria-label":"Мова / Sprache"});
+  LANGS.forEach(([code,label])=>sw.append(el("button",{type:"button","data-lang":code,onclick:()=>setLang(code)},label)));
+  document.querySelector(".topbar").append(sw);
+  applyLang();
+})();
+
+
+/* Data: lists/{email}/g/{groupId}/items — a wish lives inside one people-list and is visible only to its members.
+   Claims: lists/{email}/g/{groupId}/claims/{itemId}. */
 const itemsCol=(owner,gid)=>collection(db,"lists",owner,"g",gid,"items");
 const itemDoc=(owner,gid,id)=>doc(db,"lists",owner,"g",gid,"items",id);
 const claimsCol=(owner,gid)=>collection(db,"lists",owner,"g",gid,"claims");
 const claimDoc=(owner,gid,id)=>doc(db,"lists",owner,"g",gid,"claims",id);
 const key=(gid,e)=>gid+"|"+e;
 
-/* приглашение по ссылке: ?join=<groupId>.<code> */
-let pendingJoin=null;
+/* invite link: ?join=<groupId>.<code> */
+let pendingJoin=null, joinError="";
 try{
   const j=new URLSearchParams(location.search).get("join");
-  if(j) sessionStorage.setItem("pendingJoin",j);   // ссылку в адресе оставляем до входа, чтобы «Открыть в Safari» её не потерял
+  if(j) sessionStorage.setItem("pendingJoin",j);   // keep it in the URL until sign-in so "open in browser" keeps it
   pendingJoin=j||sessionStorage.getItem("pendingJoin");
 }catch{ pendingJoin=new URLSearchParams(location.search).get("join"); }
 function clearJoin(){
@@ -167,11 +283,11 @@ function inviteLink(g){ return location.origin+location.pathname+"?join="+g.id+"
 async function doJoin(){
   const [gid,code]=String(pendingJoin).split(".");
   clearJoin();
-  if(!gid||!code){ toast("Ссылка-приглашение повреждена"); return; }
+  if(!gid||!code){ toast(t("inviteBroken")); return; }
   const gref=doc(db,"groups",gid);
-  try{ const s=await getDoc(gref); if(s.exists()&&(s.data().emails||[]).includes(me)){ activeGroup=gid; return; } }catch{} // ещё не участник — прочитать нельзя
-  try{ await updateDoc(gref,{emails:arrayUnion(me),joinCode:code}); activeGroup=gid; view="lists"; toast("Ты в списке!"); }
-  catch(e){ console.error(e); toast("Ссылка недействительна или устарела. Попроси новую."); }
+  try{ const s=await getDoc(gref); if(s.exists()&&(s.data().emails||[]).includes(me)){ activeGroup=gid; return; } }catch{} // not a member yet — read is denied
+  try{ await updateDoc(gref,{emails:arrayUnion(me),joinCode:code}); activeGroup=gid; view="lists"; toast(t("joined")); }
+  catch(e){ console.error(e); joinError=(e&&e.code)||"error"; toast(t("joinToast")); }
 }
 
 /* ---------- helpers ---------- */
@@ -189,7 +305,7 @@ function el(tag, attrs={}, ...kids){
 const norm = e => (e||"").trim().toLowerCase();
 function displayName(e){ return (profiles[e]&&profiles[e].name) || (e===me?googleName:"") || e.split("@")[0]; }
 function safeUrl(u){ try{ const x=new URL(u); return /^https?:$/.test(x.protocol)?x.href:null; }catch{ return null; } }
-function plural(n){ const a=n%10,b=n%100; if(a===1&&b!==11) return "желание"; if(a>=2&&a<=4&&(b<12||b>14)) return "желания"; return "желаний"; }
+const plural=n=>t("plural",n);
 function toast(t){ const n=el("div",{class:"toast",role:"status"},t); document.body.append(n); setTimeout(()=>n.remove(),2600); }
 const myGroups=()=>groups.filter(g=>(g.emails||[]).includes(me));
 
@@ -198,8 +314,8 @@ async function write(fn, okMsg){
   try{ await fn(); if(okMsg) toast(okMsg); }
   catch(e){
     console.error(e);
-    if(e&&e.code==="permission-denied") toast("Нет прав на это действие (проверь, что правила Firestore обновлены)");
-    else toast("Не получилось сохранить. Попробуй ещё раз");
+    if(e&&e.code==="permission-denied") toast(t("noRights"));
+    else toast(t("saveFailed"));
   }
   finally{ busy=false; render(); }
 }
@@ -229,7 +345,15 @@ function start(k){
     if(retries[k]<=3) setTimeout(syncSubs,2500*retries[k]);
   };
   let u;
-  if(t==="p") u=onSnapshot(doc(db,"profiles",a), s=>{ profiles[a]=s.exists()?s.data():null; if(a===me) loadedProfile=true; render(); }, fail);
+  if(t==="p") u=onSnapshot(doc(db,"profiles",a), s=>{
+    profiles[a]=s.exists()?s.data():null;
+    if(a===me){
+      loadedProfile=true;
+      const pl=profiles[a]&&profiles[a].lang;
+      if(pl&&I18N[pl]&&pl!==lang) setLang(pl,false);                 // remembered language for this person
+      else if(profiles[a]&&!pl) setDoc(doc(db,"profiles",me),{lang},{merge:true}).catch(()=>{});
+    }
+    render(); }, fail);
   else if(t==="i") u=onSnapshot(query(itemsCol(b,a),orderBy("createdAt","asc")), s=>{ items[key(a,b)]=s.docs.map(d=>({id:d.id,...d.data()})); delete failed[key(a,b)]; delete retries[k]; render(); }, fail);
   else if(t==="c") u=onSnapshot(claimsCol(b,a), s=>{ const m={}; s.docs.forEach(d=>m[d.id]=d.data()); claims[key(a,b)]=m; render(); }, fail);
   if(u) subs.set(k,u);
@@ -244,38 +368,38 @@ function render(){
   queueMicrotask(()=>{ app.querySelectorAll("form[data-key] input[name],form[data-key] textarea[name]").forEach(n=>{ const k=n.form.dataset.key+"|"+n.name; if(k in keep){ n.value=keep[k]; n.dataset.dirty="1"; } if(n.name===focused) n.focus(); }); });
 
   if(!me){ app.append(loginView()); return; }
-  if(!loadedGroups||!loadedProfile){ app.append(el("p",{class:"status"},"Загружаю списки…")); return; }
+  if(!loadedGroups||!loadedProfile){ app.append(el("p",{class:"status"},t("loadingLists"))); return; }
 
-  app.append(el("div",{class:"me"}, el("span",{},me), el("button",{class:"linkbtn",onclick:()=>signOut(auth)},"Выйти")));
+  app.append(el("div",{class:"me"}, el("span",{},me), el("button",{class:"linkbtn",onclick:()=>signOut(auth)},t("logout"))));
   if(!profiles[me]){ app.append(profileForm()); return; }
 
   const mg=myGroups();
   if(mg.length||isAdmin){
     if(!activeGroup||!mg.find(g=>g.id===activeGroup)) activeGroup=mg[0]?mg[0].id:null;
-    const bar=el("div",{class:"groups",role:"group","aria-label":"Списки людей"});
+    const bar=el("div",{class:"groups",role:"group","aria-label":t("peopleLists")});
     mg.forEach(g=>bar.append(el("button",{class:"chip","aria-pressed":String(view==="lists"&&g.id===activeGroup),onclick:()=>{view="lists";activeGroup=g.id;selected=null;adding=false;editing=null;filter="all";render();}},g.name)));
-    if(isAdmin) bar.append(el("button",{class:"chip admin","aria-pressed":String(view==="admin"),onclick:()=>{view="admin";render();}},"Управление"));
+    if(isAdmin) bar.append(el("button",{class:"chip admin","aria-pressed":String(view==="admin"),onclick:()=>{view="admin";render();}},t("manage")));
     app.append(bar);
   }
   if(view==="admin"&&isAdmin){ app.append(adminView()); return; }
 
   const g=mg.find(x=>x.id===activeGroup);
   if(!g){
+    if(joinError) app.append(el("div",{class:"notice",style:"border-left-color:var(--ribbon)"},t("joinError",joinError)));
     app.append(el("div",{class:"notice"},
-      isAdmin? "Создай список людей во вкладке «Управление». Ты добавишься в него автоматически."
-             : "Тебя пока не добавили ни в один список. Попроси ссылку-приглашение или напиши администратору свой email: "+me+"."));
+      isAdmin? t("adminNoGroups") : t("userNoGroups",me)));
     return;
   }
 
   const ids=[me,...(g.emails||[]).filter(e=>e!==me)];
   if(!selected||!ids.includes(selected)) selected=me;
 
-  const strip=el("div",{class:"people",role:"group","aria-label":"Чей список"});
+  const strip=el("div",{class:"people",role:"group","aria-label":t("whose")});
   for(const id of ids){
     const ghost=id!==me&&!profiles[id];
     strip.append(el("button",{class:"person"+(ghost?" ghost":""),"aria-pressed":String(id===selected),title:id,onclick:()=>{selected=id;filter="all";adding=false;editing=null;render();}},
       el("div",{class:"avatar"},(profiles[id]&&profiles[id].emoji)||"🎁"),
-      el("span",{},id===me?"Я":displayName(id))));
+      el("span",{},id===me?t("meShort"):displayName(id))));
   }
   app.append(strip);
 
@@ -283,37 +407,37 @@ function render(){
   const k=key(g.id,selected);
   const list=items[k]||[];
   app.append(el("div",{class:"tag"},
-    el("h2",{},mine?"Мой вишлист":"Вишлист: "+displayName(selected)),
-    el("div",{class:"count"}, !mine&&!profiles[selected]?"Ещё не заходил(а) в приложение": list.length?`${list.length} ${plural(list.length)}`:"Пока пусто")));
+    el("h2",{},mine?t("myWishlist"):t("wishlistOf",displayName(selected))),
+    el("div",{class:"count"}, !mine&&!profiles[selected]?t("notJoined"): list.length?`${list.length} ${plural(list.length)}`:t("empty"))));
 
-  if(mine) app.append(el("p",{class:"hint",style:"margin:0 0 12px"},`Эти желания видят только участники списка «${g.name}». В других списках у тебя отдельные вишлисты.`));
+  if(mine) app.append(el("p",{class:"hint",style:"margin:0 0 12px"},t("visibleTo",g.name)));
 
-  if(failed[k]&&!items[k]){ app.append(el("p",{class:"empty"},"Не удалось загрузить список. Обнови страницу через минуту.")); return; }
+  if(failed[k]&&!items[k]){ app.append(el("p",{class:"empty"},t("loadFailed"))); return; }
 
   if(mine){
     if(adding) app.append(itemForm(null,g));
-    else app.append(el("button",{class:"btn",style:"width:100%;margin-bottom:14px",onclick:()=>{adding=true;editing=null;render();queueMicrotask(()=>{const i=app.querySelector("form input");if(i)i.focus();});}},"Добавить желание"));
+    else app.append(el("button",{class:"btn",style:"width:100%;margin-bottom:14px",onclick:()=>{adding=true;editing=null;render();queueMicrotask(()=>{const i=app.querySelector("form input");if(i)i.focus();});}},t("addWish")));
   }
 
   const occs=[...new Set(list.map(i=>i.occasion).filter(Boolean))];
   if(filter!=="all"&&!occs.includes(filter)) filter="all";
   if(occs.length>1){
     const c=el("div",{class:"chips"});
-    for(const o of ["all",...occs]) c.append(el("button",{class:"chip","aria-pressed":String(filter===o),onclick:()=>{filter=o;render();}},o==="all"?"Все":o));
+    for(const o of ["all",...occs]) c.append(el("button",{class:"chip","aria-pressed":String(filter===o),onclick:()=>{filter=o;render();}},o==="all"?t("all"):o));
     app.append(c);
   }
   const shown=list.filter(i=>filter==="all"||i.occasion===filter);
   if(!shown.length){
-    app.append(el("p",{class:"empty"}, mine?"Добавь первое желание — чем подробнее, тем проще тебе угодить.":"Здесь пока ничего нет."));
+    app.append(el("p",{class:"empty"}, mine?t("emptyMine"):t("emptyOther")));
   } else {
     const ul=el("ul",{class:"items"});
     for(const it of shown) ul.append(editing===it.id?el("li",{},itemForm(it,g)):itemCard(it,mine,g));
     app.append(ul);
   }
-  if(mine&&list.length) app.append(el("p",{class:"hint"},"Кто что тебе дарит, скрыто от тебя — пусть будет сюрприз."));
+  if(mine&&list.length) app.append(el("p",{class:"hint"},t("surprise")));
 }
 
-/* Встроенные браузеры (Telegram, Instagram, Facebook, WhatsApp…) Google блокирует для входа */
+/* In-app browsers (Telegram, Instagram, Facebook, WhatsApp…) are blocked by Google sign-in */
 const UA=navigator.userAgent||"";
 const isIOS=/iPhone|iPad|iPod/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1);
 const isAndroid=/Android/.test(UA);
@@ -330,36 +454,34 @@ function openOutside(){
 }
 async function copySite(){
   const url=siteUrl();
-  try{ await navigator.clipboard.writeText(url); toast("Ссылка скопирована — вставь её в Safari или Chrome"); }
-  catch{ prompt("Скопируй ссылку и открой в браузере:",url); }
+  try{ await navigator.clipboard.writeText(url); toast(t("copiedOpen")); }
+  catch{ prompt(t("copyPrompt"),url); }
 }
 
 function loginView(){
   const google=async()=>{
     const p=new GoogleAuthProvider();
     try{ await signInWithPopup(auth,p); }
-    catch(e){ if(e&&(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")) signInWithRedirect(auth,p); else if(e&&e.code!=="auth/popup-closed-by-user") toast("Не удалось войти"); }
+    catch(e){ if(e&&(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")) signInWithRedirect(auth,p); else if(e&&e.code!=="auth/popup-closed-by-user") toast(t("loginFailed")); }
   };
-  const invite=pendingJoin? el("div",{class:"notice",style:"text-align:left"},"Тебя пригласили в список вишлистов. Войди через Google, чтобы присоединиться.") : null;
+  const invite=pendingJoin? el("div",{class:"notice",style:"text-align:left"},t("invited")) : null;
 
   if(inApp){
     return el("div",{class:"login"},
       invite,
       el("div",{class:"notice",style:"text-align:left"},
-        el("strong",{},"Открой сайт в обычном браузере"),
-        el("p",{style:"margin:6px 0 0"},"Ссылка открылась внутри приложения (например, Telegram), а Google не разрешает входить через такие встроенные браузеры."),
-        el("p",{style:"margin:6px 0 0"}, isIOS? "Нажми «Открыть в Safari» ниже. Если не сработает — нажми ⋯ или значок компаса вверху экрана и выбери «Открыть в Safari»."
-                                         : isAndroid? "Нажми «Открыть в браузере» ниже. Если не сработает — нажми ⋮ вверху справа и выбери «Открыть в браузере»."
-                                         : "Скопируй ссылку и открой её в Safari или Chrome.")),
-      (isIOS||isAndroid)? el("button",{class:"btn",style:"width:100%;margin-bottom:10px",onclick:openOutside}, isIOS?"Открыть в Safari":"Открыть в браузере") : null,
-      el("button",{class:"btn mint",style:"width:100%;margin-bottom:10px",onclick:copySite},"Скопировать ссылку"),
-      el("button",{class:"linkbtn",onclick:google},"Всё равно попробовать войти здесь"));
+        el("strong",{},t("openNormal")),
+        el("p",{style:"margin:6px 0 0"},t("inAppWhy")),
+        el("p",{style:"margin:6px 0 0"}, isIOS? t("iosHow") : isAndroid? t("androidHow") : t("otherHow"))),
+      (isIOS||isAndroid)? el("button",{class:"btn",style:"width:100%;margin-bottom:10px",onclick:openOutside}, isIOS?t("openSafari"):t("openBrowser")) : null,
+      el("button",{class:"btn mint",style:"width:100%;margin-bottom:10px",onclick:copySite},t("copyLink")),
+      el("button",{class:"linkbtn",onclick:google},t("tryHere")));
   }
 
   return el("div",{class:"login"},
     invite,
-    el("p",{class:"sub"},"Свой список подарков и списки близких. Что ты собираешься дарить — владелец списка не увидит."),
-    el("button",{class:"btn",onclick:google},"Войти через Google"));
+    el("p",{class:"sub"},t("tagline")),
+    el("button",{class:"btn",onclick:google},t("signIn")));
 }
 
 function itemCard(it,mine,g){
@@ -372,21 +494,21 @@ function itemCard(it,mine,g){
   const url=safeUrl(it.url||"");
   const meta=el("div",{class:"meta"});
   if(it.occasion) meta.append(el("span",{class:"occ"},it.occasion));
-  if(url) meta.append(el("a",{href:url,target:"_blank",rel:"noopener noreferrer"},"Ссылка"));
+  if(url) meta.append(el("a",{href:url,target:"_blank",rel:"noopener noreferrer"},t("link")));
   if(meta.childNodes.length) li.append(meta);
   if(it.note) li.append(el("p",{class:"note"},it.note));
 
   if(mine){
     li.append(el("div",{class:"actions"},
-      el("button",{class:"btn ghost",onclick:()=>{editing=it.id;adding=false;render();}},"Изменить"),
-      el("button",{class:"btn ghost",onclick:()=>{ if(confirm("Удалить «"+it.title+"»?")) write(()=>deleteDoc(itemDoc(me,g.id,it.id))); }},"Удалить")));
+      el("button",{class:"btn ghost",onclick:()=>{editing=it.id;adding=false;render();}},t("edit")),
+      el("button",{class:"btn ghost",onclick:()=>{ if(confirm(t("confirmDelete",it.title))) write(()=>deleteDoc(itemDoc(me,g.id,it.id))); }},t("del"))));
   } else if(byMe){
-    li.append(el("div",{class:"taken"},"Это даришь ты"));
-    li.append(el("div",{class:"actions"},el("button",{class:"btn ghost",onclick:()=>write(()=>deleteDoc(claimDoc(owner,g.id,it.id)))},"Отменить бронь")));
+    li.append(el("div",{class:"taken"},t("youGive")));
+    li.append(el("div",{class:"actions"},el("button",{class:"btn ghost",onclick:()=>write(()=>deleteDoc(claimDoc(owner,g.id,it.id)))},t("cancelClaim"))));
   } else if(claim){
-    li.append(el("div",{class:"taken"},"Уже дарит "+displayName(claim.by)));
+    li.append(el("div",{class:"taken"},t("takenBy",displayName(claim.by))));
   } else {
-    li.append(el("div",{class:"actions"},el("button",{class:"btn mint",onclick:()=>write(()=>setDoc(claimDoc(owner,g.id,it.id),{by:me,at:Date.now()}))},"Я подарю это")));
+    li.append(el("div",{class:"actions"},el("button",{class:"btn mint",onclick:()=>write(()=>setDoc(claimDoc(owner,g.id,it.id),{by:me,at:Date.now()}))},t("iGive"))));
   }
   return li;
 }
@@ -405,16 +527,16 @@ function itemForm(it,g){
   }});
   const v=k=>it?(it[k]||""):"";
   f.append(
-    el("label",{},"Что хочется",el("input",{name:"title",required:true,maxlength:"200",value:v("title"),placeholder:"Например, тёплый плед"})),
-    el("label",{},"Ссылка",el("input",{name:"url",type:"url",inputmode:"url",value:v("url"),placeholder:"https://…"})),
+    el("label",{},t("fTitle"),el("input",{name:"title",required:true,maxlength:"200",value:v("title"),placeholder:t("fTitlePh")})),
+    el("label",{},t("fUrl"),el("input",{name:"url",type:"url",inputmode:"url",value:v("url"),placeholder:"https://…"})),
     el("div",{class:"row"},
-      el("label",{},"Цена",el("input",{name:"price",maxlength:"40",value:v("price"),placeholder:"≈ 40 €"})),
-      el("label",{},"Повод",el("input",{name:"occasion",list:"occ-list",maxlength:"40",value:v("occasion"),placeholder:"Новый год"}))),
-    el("datalist",{id:"occ-list"},OCCASIONS.map(o=>el("option",{value:o}))),
-    el("label",{},"Комментарий",el("textarea",{name:"note",maxlength:"1000",placeholder:"Размер, цвет, что точно не надо…"},v("note"))),
+      el("label",{},t("fPrice"),el("input",{name:"price",maxlength:"40",value:v("price"),placeholder:"≈ 40 €"})),
+      el("label",{},t("fOcc"),el("input",{name:"occasion",list:"occ-list",maxlength:"40",value:v("occasion"),placeholder:t("occasions")[0]}))),
+    el("datalist",{id:"occ-list"},t("occasions").map(o=>el("option",{value:o}))),
+    el("label",{},t("fNote"),el("textarea",{name:"note",maxlength:"1000",placeholder:t("fNotePh")},v("note"))),
     el("div",{class:"actions"},
-      el("button",{class:"btn",type:"submit",disabled:busy},it?"Сохранить":"Добавить в «"+g.name+"»"),
-      el("button",{class:"btn ghost",type:"button",onclick:()=>{adding=false;editing=null;render();}},"Отмена")));
+      el("button",{class:"btn",type:"submit",disabled:busy},it?t("save"):t("addTo",g.name)),
+      el("button",{class:"btn ghost",type:"button",onclick:()=>{adding=false;editing=null;render();}},t("cancel"))));
   return f;
 }
 
@@ -422,15 +544,15 @@ function profileForm(){
   const f=el("form",{class:"form","data-key":"profile",onsubmit:e=>{
     e.preventDefault();
     const name=new FormData(f).get("name").trim(); if(!name) return;
-    write(()=>setDoc(doc(db,"profiles",me),{name:name.slice(0,40),emoji:joinEmoji}));
+    write(()=>setDoc(doc(db,"profiles",me),{name:name.slice(0,40),emoji:joinEmoji,lang}));
   }});
-  const em=el("div",{class:"emojis",role:"group","aria-label":"Аватар"});
+  const em=el("div",{class:"emojis",role:"group","aria-label":t("avatar")});
   for(const e of EMOJIS) em.append(el("button",{type:"button","aria-pressed":String(e===joinEmoji),"aria-label":e,onclick:()=>{joinEmoji=e;em.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.textContent===e)));}},e));
   f.append(
-    el("strong",{},"Как тебя подписать"),
-    el("label",{},"Имя, которое увидят остальные",el("input",{name:"name",required:true,maxlength:"40",value:googleName,placeholder:"Мама, Саша, Тётя Оля…"})),
+    el("strong",{},t("howSign")),
+    el("label",{},t("nameLabel"),el("input",{name:"name",required:true,maxlength:"40",value:googleName,placeholder:t("namePh")})),
     em,
-    el("div",{class:"actions"},el("button",{class:"btn",type:"submit"},"Продолжить")));
+    el("div",{class:"actions"},el("button",{class:"btn",type:"submit"},t("cont"))));
   return f;
 }
 
@@ -439,11 +561,11 @@ function adminView(){
   const create=el("form",{class:"form","data-key":"newgroup",onsubmit:e=>{
     e.preventDefault();
     const name=new FormData(create).get("gname").trim(); if(!name) return;
-    write(async()=>{ const r=await addDoc(collection(db,"groups"),{name:name.slice(0,40),emails:[me],inviteCode:newCode(),createdAt:Date.now()}); activeGroup=r.id; create.reset(); },"Список создан");
+    write(async()=>{ const r=await addDoc(collection(db,"groups"),{name:name.slice(0,40),emails:[me],inviteCode:newCode(),createdAt:Date.now()}); activeGroup=r.id; create.reset(); },t("groupCreated"));
   }},
-    el("strong",{},"Новый список людей"),
-    el("label",{},"Название",el("input",{name:"gname",required:true,maxlength:"40",placeholder:"Семья, Друзья, Коллеги…"})),
-    el("div",{class:"actions"},el("button",{class:"btn",type:"submit"},"Создать")));
+    el("strong",{},t("newGroup")),
+    el("label",{},t("gName"),el("input",{name:"gname",required:true,maxlength:"40",placeholder:t("gNamePh")})),
+    el("div",{class:"actions"},el("button",{class:"btn",type:"submit"},t("create"))));
   wrap.append(create);
 
   groups.forEach(g=>{
@@ -451,21 +573,21 @@ function adminView(){
       e.preventDefault();
       const d=Object.fromEntries(new FormData(f));
       const emails=[...new Set(String(d.emails||"").split(/[\s,;]+/).map(norm).filter(x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)))];
-      write(async()=>{ await updateDoc(doc(db,"groups",g.id),{name:(d.gname||g.name).trim().slice(0,40),emails}); f.querySelectorAll("[data-dirty]").forEach(n=>delete n.dataset.dirty); },"Сохранено");
+      write(async()=>{ await updateDoc(doc(db,"groups",g.id),{name:(d.gname||g.name).trim().slice(0,40),emails}); f.querySelectorAll("[data-dirty]").forEach(n=>delete n.dataset.dirty); },t("saved"));
     }},
       el("h3",{},g.name),
       g.inviteCode
         ? el("div",{class:"actions",style:"margin-top:0"},
-            el("button",{class:"btn mint",type:"button",onclick:async()=>{ const l=inviteLink(g); try{ await navigator.clipboard.writeText(l); toast("Ссылка скопирована"); }catch{ prompt("Скопируй ссылку:",l); } }},"Скопировать ссылку-приглашение"),
-            el("button",{class:"btn ghost",type:"button",onclick:()=>{ if(confirm("Старая ссылка перестанет работать. Те, кто уже вошёл, останутся в списке.")) write(()=>updateDoc(doc(db,"groups",g.id),{inviteCode:newCode()}),"Новая ссылка готова"); }},"Новая ссылка"))
+            el("button",{class:"btn mint",type:"button",onclick:async()=>{ const l=inviteLink(g); try{ await navigator.clipboard.writeText(l); toast(t("linkCopied")); }catch{ prompt(t("copyLinkPrompt"),l); } }},t("copyInvite")),
+            el("button",{class:"btn ghost",type:"button",onclick:()=>{ if(confirm(t("confirmNewLink"))) write(()=>updateDoc(doc(db,"groups",g.id),{inviteCode:newCode()}),t("newLinkReady")); }},t("newLink")))
         : el("div",{class:"actions",style:"margin-top:0"},
-            el("button",{class:"btn mint",type:"button",onclick:()=>write(()=>updateDoc(doc(db,"groups",g.id),{inviteCode:newCode()}),"Ссылка создана")},"Создать ссылку-приглашение")),
-      el("label",{},"Название",el("input",{name:"gname",maxlength:"40",value:g.name})),
-      el("label",{},"Email-адреса (Google), каждый с новой строки",el("textarea",{name:"emails",rows:"5",placeholder:"mama@gmail.com\nsasha@gmail.com"},(g.emails||[]).join("\n"))),
-      el("div",{class:"pending"},`Участников: ${(g.emails||[]).length}. Себя тоже оставь в списке, если хочешь видеть этих людей и вести здесь свой вишлист.`),
+            el("button",{class:"btn mint",type:"button",onclick:()=>write(()=>updateDoc(doc(db,"groups",g.id),{inviteCode:newCode()}),t("linkCreated"))},t("createInvite"))),
+      el("label",{},t("gName"),el("input",{name:"gname",maxlength:"40",value:g.name})),
+      el("label",{},t("emailsLabel"),el("textarea",{name:"emails",rows:"5",placeholder:"mama@gmail.com\nsasha@gmail.com"},(g.emails||[]).join("\n"))),
+      el("div",{class:"pending"},t("members",(g.emails||[]).length)),
       el("div",{class:"actions"},
-        el("button",{class:"btn",type:"submit"},"Сохранить"),
-        el("button",{class:"btn ghost",type:"button",onclick:()=>{ if(confirm("Удалить список «"+g.name+"»? Желания внутри него перестанут быть видны.")) write(()=>deleteDoc(doc(db,"groups",g.id)),"Удалено"); }},"Удалить")));
+        el("button",{class:"btn",type:"submit"},t("save")),
+        el("button",{class:"btn ghost",type:"button",onclick:()=>{ if(confirm(t("confirmDelGroup",g.name))) write(()=>deleteDoc(doc(db,"groups",g.id)),t("deleted")); }},t("del"))));
     wrap.append(f);
   });
   return wrap;
@@ -480,13 +602,13 @@ onAuthStateChanged(auth, async u=>{
   loadedGroups=false; loadedProfile=false;
   if(!u||!u.email){ me=null; render(); return; }
   me=norm(u.email); googleName=u.displayName||""; isAdmin=me===norm(ADMIN_EMAIL);
-  if(pendingJoin){ app.replaceChildren(el("p",{class:"status"},"Добавляю тебя в список…")); await doJoin(); }
+  if(pendingJoin){ app.replaceChildren(el("p",{class:"status"},t("joining"))); await doJoin(); }
   const q=isAdmin? query(collection(db,"groups"),orderBy("createdAt","asc"))
                  : query(collection(db,"groups"),where("emails","array-contains",me));
   groupsUnsub=onSnapshot(q, s=>{
     groups=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
     loadedGroups=true; syncSubs(); render();
-  }, err=>{ console.error(err); toast("Не удалось загрузить списки"); loadedGroups=true; syncSubs(); render(); });
+  }, err=>{ console.error(err); toast(t("groupsLoadFailed")); loadedGroups=true; syncSubs(); render(); });
   syncSubs();
   render();
 });
